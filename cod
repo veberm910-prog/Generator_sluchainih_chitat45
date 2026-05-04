@@ -1,0 +1,343 @@
+import json
+import random
+from pathlib import Path
+import tkinter as tk
+from tkinter import ttk, messagebox
+
+
+QUOTES_FILE = Path("quotes.json")
+HISTORY_FILE = Path("history.json")
+
+
+DEFAULT_QUOTES = [
+    {
+        "text": "Будьте собой, прочие роли уже заняты.",
+        "author": "Оскар Уайльд",
+        "topic": "Жизнь"
+    },
+    {
+        "text": "Единственный способ делать великие дела — любить то, что ты делаешь.",
+        "author": "Стив Джобс",
+        "topic": "Работа"
+    },
+    {
+        "text": "Знание — сила.",
+        "author": "Фрэнсис Бэкон",
+        "topic": "Образование"
+    },
+    {
+        "text": "Если ты можешь мечтать об этом, ты можешь это сделать.",
+        "author": "Уолт Дисней",
+        "topic": "Мотивация"
+    },
+    {
+        "text": "Успех — это способность идти от неудачи к неудаче, не теряя энтузиазма.",
+        "author": "Уинстон Черчилль",
+        "topic": "Успех"
+    },
+    {
+        "text": "Не ошибается тот, кто ничего не делает.",
+        "author": "Теодор Рузвельт",
+        "topic": "Мотивация"
+    }
+]
+
+
+class RandomQuoteGenerator:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Random Quote Generator")
+        self.root.geometry("850x600")
+
+        self.quotes = self.load_quotes()
+        self.history = self.load_history()
+
+        self.current_quote_var = tk.StringVar(value="Нажмите кнопку, чтобы сгенерировать цитату")
+        self.author_filter_var = tk.StringVar(value="Все")
+        self.topic_filter_var = tk.StringVar(value="Все")
+
+        self.new_text_var = tk.StringVar()
+        self.new_author_var = tk.StringVar()
+        self.new_topic_var = tk.StringVar()
+
+        self.create_widgets()
+        self.update_filter_values()
+        self.update_history_list()
+
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+
+    def load_quotes(self):
+        if QUOTES_FILE.exists():
+            try:
+                with open(QUOTES_FILE, "r", encoding="utf-8") as file:
+                    data = json.load(file)
+
+                if isinstance(data, list):
+                    return data
+            except json.JSONDecodeError:
+                messagebox.showwarning(
+                    "Ошибка чтения",
+                    "Файл quotes.json повреждён. Будут загружены стандартные цитаты."
+                )
+
+        self.save_quotes(DEFAULT_QUOTES)
+        return DEFAULT_QUOTES.copy()
+
+    def save_quotes(self, quotes=None):
+        if quotes is None:
+            quotes = self.quotes
+
+        with open(QUOTES_FILE, "w", encoding="utf-8") as file:
+            json.dump(quotes, file, ensure_ascii=False, indent=4)
+
+    def load_history(self):
+        if HISTORY_FILE.exists():
+            try:
+                with open(HISTORY_FILE, "r", encoding="utf-8") as file:
+                    data = json.load(file)
+
+                if isinstance(data, list):
+                    return data
+            except json.JSONDecodeError:
+                messagebox.showwarning(
+                    "Ошибка чтения",
+                    "Файл history.json повреждён. История будет очищена."
+                )
+
+        return []
+
+    def save_history(self):
+        with open(HISTORY_FILE, "w", encoding="utf-8") as file:
+            json.dump(self.history, file, ensure_ascii=False, indent=4)
+
+    def create_widgets(self):
+        title_label = ttk.Label(
+            self.root,
+            text="Random Quote Generator",
+            font=("Arial", 20, "bold")
+        )
+        title_label.pack(pady=10)
+
+        quote_frame = ttk.LabelFrame(self.root, text="Случайная цитата")
+        quote_frame.pack(fill="x", padx=15, pady=10)
+
+        quote_label = ttk.Label(
+            quote_frame,
+            textvariable=self.current_quote_var,
+            font=("Arial", 12),
+            wraplength=780,
+            justify="center"
+        )
+        quote_label.pack(padx=10, pady=15)
+
+        filter_frame = ttk.LabelFrame(self.root, text="Фильтрация")
+        filter_frame.pack(fill="x", padx=15, pady=10)
+
+        ttk.Label(filter_frame, text="Автор:").grid(row=0, column=0, padx=5, pady=5)
+        self.author_combo = ttk.Combobox(
+            filter_frame,
+            textvariable=self.author_filter_var,
+            state="readonly",
+            width=25
+        )
+        self.author_combo.grid(row=0, column=1, padx=5, pady=5)
+
+        ttk.Label(filter_frame, text="Тема:").grid(row=0, column=2, padx=5, pady=5)
+        self.topic_combo = ttk.Combobox(
+            filter_frame,
+            textvariable=self.topic_filter_var,
+            state="readonly",
+            width=25
+        )
+        self.topic_combo.grid(row=0, column=3, padx=5, pady=5)
+
+        generate_button = ttk.Button(
+            filter_frame,
+            text="Сгенерировать цитату",
+            command=self.generate_quote
+        )
+        generate_button.grid(row=0, column=4, padx=10, pady=5)
+
+        reset_button = ttk.Button(
+            filter_frame,
+            text="Сбросить фильтры",
+            command=self.reset_filters
+        )
+        reset_button.grid(row=0, column=5, padx=5, pady=5)
+
+        add_frame = ttk.LabelFrame(self.root, text="Добавить новую цитату")
+        add_frame.pack(fill="x", padx=15, pady=10)
+
+        ttk.Label(add_frame, text="Текст:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        text_entry = ttk.Entry(add_frame, textvariable=self.new_text_var, width=55)
+        text_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        ttk.Label(add_frame, text="Автор:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        author_entry = ttk.Entry(add_frame, textvariable=self.new_author_var, width=55)
+        author_entry.grid(row=1, column=1, padx=5, pady=5)
+
+        ttk.Label(add_frame, text="Тема:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        topic_entry = ttk.Entry(add_frame, textvariable=self.new_topic_var, width=55)
+        topic_entry.grid(row=2, column=1, padx=5, pady=5)
+
+        add_button = ttk.Button(
+            add_frame,
+            text="Добавить цитату",
+            command=self.add_quote
+        )
+        add_button.grid(row=0, column=2, rowspan=3, padx=15, pady=5)
+
+        history_frame = ttk.LabelFrame(self.root, text="История сгенерированных цитат")
+        history_frame.pack(fill="both", expand=True, padx=15, pady=10)
+
+        self.history_listbox = tk.Listbox(history_frame, height=10)
+        self.history_listbox.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=10)
+
+        scrollbar = ttk.Scrollbar(
+            history_frame,
+            orient="vertical",
+            command=self.history_listbox.yview
+        )
+        scrollbar.pack(side="right", fill="y", padx=(0, 10), pady=10)
+
+        self.history_listbox.config(yscrollcommand=scrollbar.set)
+
+        bottom_frame = ttk.Frame(self.root)
+        bottom_frame.pack(fill="x", padx=15, pady=5)
+
+        clear_history_button = ttk.Button(
+            bottom_frame,
+            text="Очистить историю",
+            command=self.clear_history
+        )
+        clear_history_button.pack(side="left")
+
+        save_history_button = ttk.Button(
+            bottom_frame,
+            text="Сохранить историю",
+            command=self.manual_save_history
+        )
+        save_history_button.pack(side="left", padx=10)
+
+    def update_filter_values(self):
+        authors = sorted(set(quote["author"] for quote in self.quotes))
+        topics = sorted(set(quote["topic"] for quote in self.quotes))
+
+        self.author_combo["values"] = ["Все"] + authors
+        self.topic_combo["values"] = ["Все"] + topics
+
+        if self.author_filter_var.get() not in self.author_combo["values"]:
+            self.author_filter_var.set("Все")
+
+        if self.topic_filter_var.get() not in self.topic_combo["values"]:
+            self.topic_filter_var.set("Все")
+
+    def format_quote(self, quote):
+        return f'«{quote["text"]}» — {quote["author"]} [{quote["topic"]}]'
+
+    def get_filtered_quotes(self):
+        selected_author = self.author_filter_var.get()
+        selected_topic = self.topic_filter_var.get()
+
+        filtered_quotes = []
+
+        for quote in self.quotes:
+            author_matches = selected_author == "Все" or quote["author"] == selected_author
+            topic_matches = selected_topic == "Все" or quote["topic"] == selected_topic
+
+            if author_matches and topic_matches:
+                filtered_quotes.append(quote)
+
+        return filtered_quotes
+
+    def generate_quote(self):
+        filtered_quotes = self.get_filtered_quotes()
+
+        if not filtered_quotes:
+            messagebox.showinfo(
+                "Нет цитат",
+                "По выбранным фильтрам цитаты не найдены."
+            )
+            return
+
+        quote = random.choice(filtered_quotes)
+        formatted_quote = self.format_quote(quote)
+
+        self.current_quote_var.set(formatted_quote)
+
+        self.history.append(quote)
+        self.history_listbox.insert(tk.END, formatted_quote)
+
+        self.save_history()
+
+    def update_history_list(self):
+        self.history_listbox.delete(0, tk.END)
+
+        for quote in self.history:
+            self.history_listbox.insert(tk.END, self.format_quote(quote))
+
+    def reset_filters(self):
+        self.author_filter_var.set("Все")
+        self.topic_filter_var.set("Все")
+
+    def add_quote(self):
+        text = self.new_text_var.get().strip()
+        author = self.new_author_var.get().strip()
+        topic = self.new_topic_var.get().strip()
+
+        if not text or not author or not topic:
+            messagebox.showerror(
+                "Ошибка ввода",
+                "Поля «Текст», «Автор» и «Тема» не должны быть пустыми."
+            )
+            return
+
+        new_quote = {
+            "text": text,
+            "author": author,
+            "topic": topic
+        }
+
+        self.quotes.append(new_quote)
+        self.save_quotes()
+        self.update_filter_values()
+
+        self.new_text_var.set("")
+        self.new_author_var.set("")
+        self.new_topic_var.set("")
+
+        messagebox.showinfo("Успех", "Цитата добавлена.")
+
+    def clear_history(self):
+        if not self.history:
+            messagebox.showinfo("История", "История уже пустая.")
+            return
+
+        answer = messagebox.askyesno(
+            "Подтверждение",
+            "Вы действительно хотите очистить историю?"
+        )
+
+        if answer:
+            self.history.clear()
+            self.update_history_list()
+            self.save_history()
+
+    def manual_save_history(self):
+        self.save_history()
+        messagebox.showinfo("Сохранение", "История успешно сохранена в history.json.")
+
+    def on_close(self):
+        self.save_quotes()
+        self.save_history()
+        self.root.destroy()
+
+
+def main():
+    root = tk.Tk()
+    app = RandomQuoteGenerator(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
